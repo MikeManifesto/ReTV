@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 TV Channel Emulator – Bulletproof.
-Supports show-intro-bump: plays intro bump of the next show.
+Supports show-intro-bump and random show marker [r].
 """
 
 import json
@@ -65,15 +65,12 @@ def parse_season_from_folder(folder_path):
     return None
 
 def parse_episode_from_filename(filename):
-    # First try: look for x pattern (e.g., "4x20")
     m = re.search(r'(\d+)x(\d+)', filename, re.IGNORECASE)
     if m:
         return int(m.group(2))
-    # Second: E pattern
     m = re.search(r'E(\d+)', filename, re.IGNORECASE)
     if m:
         return int(m.group(1))
-    # Third: standalone numbers - take the LAST one
     numbers = re.findall(r'\b(\d{1,3})\b', filename)
     valid_numbers = [int(n) for n in numbers if int(n) < 1000]
     if valid_numbers:
@@ -146,20 +143,34 @@ def update_history(show_path, episode_id):
     with open(history_file, 'w', encoding='utf-8') as f:
         json.dump(sorted(history), f, indent=2)
 
-def pick_next_episode(show_path):
+def pick_next_episode(show_path, random_mode=False):
     episodes = get_available_episodes(show_path)
     if not episodes:
         raise FileNotFoundError(f"No episodes found in {show_path}")
     history = get_history(show_path)
+    unwatched = []
     for s, e, video in episodes:
         ep_id = f"S{s}E{e}"
         if ep_id not in history:
+            unwatched.append((ep_id, video))
+    if unwatched:
+        if random_mode:
+            ep_id, video = random.choice(unwatched)
             return video, ep_id
-    history_file = show_path / 'history.json'
-    with open(history_file, 'w', encoding='utf-8') as f:
-        json.dump([], f)
-    s, e, video = episodes[0]
-    return video, f"S{s}E{e}"
+        else:
+            return unwatched[0][1], unwatched[0][0]
+    else:
+        # All watched – reset and start over
+        history_file = show_path / 'history.json'
+        with open(history_file, 'w', encoding='utf-8') as f:
+            json.dump([], f)
+        if random_mode:
+            s, e, video = random.choice(episodes)
+            ep_id = f"S{s}E{e}"
+            return video, ep_id
+        else:
+            s, e, video = episodes[0]
+            return video, f"S{s}E{e}"
 
 def is_scheduled(schedule, now):
     weekday = now.weekday()
@@ -266,8 +277,11 @@ def find_next_show(order, current_index):
     for i in range(1, n + 1):
         idx = (current_index + i) % n
         item = order[idx]
+        # item might have [r] marker – we need to strip it
         if item not in SPECIAL_ITEMS:
-            return item
+            # Remove [r] marker if present
+            clean = re.sub(r'\s*\[r\]\s*$', '', item, flags=re.IGNORECASE).strip()
+            return clean
     return None
 
 # ------------------------------------------------------------
@@ -324,7 +338,6 @@ def main():
         block_bumpers_path = active_block / "block-bumpers"
         intro_path = block_bumpers_path / "intro"
 
-        # Keep track of current order index for show-intro-bump
         order_index = 0
 
         while True:
@@ -333,7 +346,6 @@ def main():
 
             ensure_mpv()
 
-            # Loop over order items
             while order_index < len(order):
                 if not is_scheduled(load_json(active_block / 'schedule.json'), datetime.now()):
                     break
@@ -356,10 +368,8 @@ def main():
                     elif item == "intro":
                         video = pick_random_video(intro_path)
                     elif item == "show-intro-bump":
-                        # Find the next show in the order
                         next_show = find_next_show(order, current_idx)
                         if next_show is None:
-                            # No show found, skip
                             continue
                         show_path = active_block / "shows" / next_show
                         if not show_path.is_dir():
@@ -369,11 +379,21 @@ def main():
                             continue
                         video = pick_random_video(intro_bump_path)
                     else:
-                        # It's a show name
-                        show_path = active_block / "shows" / item
+                        # Parse show name and [r] marker
+                        show_name = item.strip()
+                        random_mode = False
+                        # Remove [r] marker if present (case-insensitive, allow spaces)
+                        m = re.match(r'^(.*?)\s*\[r\]\s*$', show_name, re.IGNORECASE)
+                        if m:
+                            random_mode = True
+                            show_name = m.group(1).strip()
+                        else:
+                            show_name = show_name
+
+                        show_path = active_block / "shows" / show_name
                         if not show_path.is_dir():
                             continue
-                        video, ep_id = pick_next_episode(show_path)
+                        video, ep_id = pick_next_episode(show_path, random_mode=random_mode)
 
                     # Play the video
                     if not mpv_play_file(video):
@@ -383,7 +403,7 @@ def main():
                         mpv_quit()
                         sys.exit(0)
 
-                    # Update history for episodes only
+                    # Update history for episodes only (not special items)
                     if item not in SPECIAL_ITEMS:
                         update_history(show_path, ep_id)
 
@@ -396,7 +416,6 @@ def main():
 
                 time.sleep(0.2)
 
-            # If we broke out because schedule ended, go to outer loop
             if not is_scheduled(load_json(active_block / 'schedule.json'), datetime.now()):
                 break
 

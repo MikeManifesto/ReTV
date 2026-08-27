@@ -1,0 +1,3 @@
+Place sponge rob season 1 episodes here
+Name them like: S1E1 - Episode Title.mp4
+The script will detect: S1E1, S1E2, etc.

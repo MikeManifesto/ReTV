@@ -1,17 +1,22 @@
 #!/usr/bin/env python3
 """
 TV Launcher – Clean theme with dark/light mode toggle.
-Persistent settings (dark mode + grid/list view).
+Settings page with dark mode toggle.
+No selection effects – items are not selectable.
 """
 
 import sys
 import os
 import json
+import subprocess
+import re
+import webbrowser
 from pathlib import Path
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QListWidget, QListWidgetItem, QPushButton, QMessageBox, QLabel,
-    QFrame, QProgressBar, QListView
+    QFrame, QProgressBar, QListView, QTabWidget, QLineEdit,
+    QDialog, QCheckBox
 )
 from PyQt5.QtCore import Qt, QSize, QTimer
 from PyQt5.QtGui import QPixmap, QIcon, QPalette, QColor
@@ -22,13 +27,112 @@ try:
 except ImportError:
     CHANNEL_MANAGER_AVAILABLE = False
 
+
+# ---------------------------------------------------------------------------
+# Settings Dialog
+# ---------------------------------------------------------------------------
+class SettingsDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.parent = parent
+        self.setWindowTitle("Settings")
+        self.setMinimumSize(400, 200)
+        self.setWindowFlags(Qt.Window | Qt.WindowCloseButtonHint | Qt.WindowMinimizeButtonHint)
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(15)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        self.dark_mode_check = QCheckBox("Dark Mode")
+        self.dark_mode_check.setChecked(parent.is_dark_mode if parent else False)
+        self.dark_mode_check.stateChanged.connect(self.toggle_dark_mode)
+        self.dark_mode_check.setStyleSheet("""
+            QCheckBox {
+                font-size: 14px;
+                spacing: 10px;
+            }
+            QCheckBox::indicator {
+                width: 18px;
+                height: 18px;
+            }
+        """)
+        layout.addWidget(self.dark_mode_check)
+
+        layout.addStretch()
+
+        close_btn = QPushButton("Close")
+        close_btn.setMinimumHeight(30)
+        close_btn.clicked.connect(self.accept)
+        layout.addWidget(close_btn)
+
+        if parent and parent.is_dark_mode:
+            self.apply_dark_mode()
+        else:
+            self.apply_light_mode()
+
+    def toggle_dark_mode(self, state):
+        if self.parent:
+            if state == Qt.Checked:
+                self.parent.apply_dark_mode()
+            else:
+                self.parent.apply_light_mode()
+
+    def apply_light_mode(self):
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #f0f0f0;
+            }
+            QLabel {
+                color: #333333;
+            }
+            QCheckBox {
+                color: #333333;
+            }
+            QPushButton {
+                background-color: #e8e8e8;
+                color: #333333;
+                border: 1px solid #c0c0c0;
+                padding: 6px 16px;
+            }
+            QPushButton:hover {
+                background-color: #d8d8d8;
+                border: 1px solid #4a7a9a;
+            }
+        """)
+
+    def apply_dark_mode(self):
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #1e1e1e;
+            }
+            QLabel {
+                color: #e0e0e0;
+            }
+            QCheckBox {
+                color: #e0e0e0;
+            }
+            QPushButton {
+                background-color: #3a3a3a;
+                color: #e0e0e0;
+                border: 1px solid #4a4a4a;
+                padding: 6px 16px;
+            }
+            QPushButton:hover {
+                background-color: #4a4a4a;
+                border: 1px solid #4a7a9a;
+            }
+        """)
+
+
+# ---------------------------------------------------------------------------
+# Main Window
+# ---------------------------------------------------------------------------
 class TVLauncher(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("TV Channel Launcher")
         self.setMinimumSize(900, 650)
 
-        # Load settings
         self.settings_file = Path("settings.json")
         self.load_settings()
 
@@ -45,27 +149,94 @@ class TVLauncher(QMainWindow):
         self.setup_header()
         self.main_layout.addWidget(self.header)
 
-        # --- Count bar ---
-        self.count_frame = QFrame()
-        self.count_frame.setStyleSheet("background-color: #f8f8f8; border: 1px solid #d0d0d0; padding: 4px 8px;")
-        count_layout = QHBoxLayout(self.count_frame)
-        count_layout.setContentsMargins(8, 4, 8, 4)
+        # --- Status bar (with controls) ---
+        self.status_frame = QFrame()
+        self.status_frame.setStyleSheet("background-color: #f8f8f8; border: 1px solid #d0d0d0; padding: 4px 8px;")
+        status_layout = QHBoxLayout(self.status_frame)
+        status_layout.setContentsMargins(8, 4, 8, 4)
+
         self.count_label = QLabel("Channels: 0")
         self.count_label.setStyleSheet("color: #4a7a9a; font-weight: bold; font-size: 13px; background-color: transparent;")
-        count_layout.addWidget(self.count_label)
-        self.status_text = QLabel("Ready")
-        self.status_text.setStyleSheet("color: #666666; font-size: 12px; background-color: transparent;")
-        count_layout.addWidget(self.status_text, alignment=Qt.AlignRight)
-        self.main_layout.addWidget(self.count_frame)
+        status_layout.addWidget(self.count_label)
 
-        # --- Channel list ---
+        status_layout.addStretch()
+
+        self.refresh_btn = QPushButton("Refresh")
+        self.refresh_btn.setStyleSheet("""
+            QPushButton {
+                font-size: 11px;
+                padding: 4px 12px;
+                background-color: #e8e8e8;
+                border: 1px solid #c0c0c0;
+                min-height: 24px;
+            }
+            QPushButton:hover {
+                background-color: #d8d8d8;
+                border: 1px solid #4a7a9a;
+            }
+        """)
+        self.refresh_btn.clicked.connect(self.load_channels)
+        status_layout.addWidget(self.refresh_btn)
+
+        self.toggle_view_btn = QPushButton("Grid View" if not self.is_grid_view else "List View")
+        self.toggle_view_btn.setStyleSheet("""
+            QPushButton {
+                font-size: 11px;
+                padding: 4px 12px;
+                background-color: #e8e8e8;
+                border: 1px solid #c0c0c0;
+                min-height: 24px;
+            }
+            QPushButton:hover {
+                background-color: #d8d8d8;
+                border: 1px solid #4a7a9a;
+            }
+        """)
+        self.toggle_view_btn.clicked.connect(self.toggle_view)
+        status_layout.addWidget(self.toggle_view_btn)
+
+        self.main_layout.addWidget(self.status_frame)
+
+        # --- Tabs ---
+        self.tab_widget = QTabWidget()
+        self.tab_widget.setStyleSheet("""
+            QTabWidget::pane {
+                background-color: #f8f8f8;
+                border: 1px solid #d0d0d0;
+            }
+            QTabBar::tab {
+                padding: 6px 12px;
+                background-color: #e0e0e0;
+                border: 1px solid #d0d0d0;
+                border-bottom: none;
+                margin-right: 2px;
+                font-weight: bold;
+            }
+            QTabBar::tab:selected {
+                background-color: #f8f8f8;
+                border-bottom: 1px solid #f8f8f8;
+            }
+            QTabBar::tab:hover {
+                background-color: #d0d0d0;
+            }
+        """)
+        self.main_layout.addWidget(self.tab_widget)
+
+        # ---- Channels Tab ----
+        channels_tab = QWidget()
+        channels_layout = QVBoxLayout(channels_tab)
+        channels_layout.setContentsMargins(0, 0, 0, 0)
+
         self.channel_list = QListWidget()
         self.channel_list.setFlow(QListView.TopToBottom)
         self.channel_list.setWrapping(False)
         self.channel_list.setIconSize(QSize(150, 150))
-        self.main_layout.addWidget(self.channel_list)
+        # No selection – no visual feedback
+        self.channel_list.setSelectionMode(QListWidget.NoSelection)
+        self.channel_list.setFocusPolicy(Qt.NoFocus)  # also remove focus rectangle
+        channels_layout.addWidget(self.channel_list)
 
-        # --- Button frame ---
+        # Button frame
         self.button_frame = QFrame()
         self.button_frame.setStyleSheet("background-color: #f8f8f8; border: 1px solid #d0d0d0; padding: 6px;")
         button_layout = QHBoxLayout(self.button_frame)
@@ -79,28 +250,43 @@ class TVLauncher(QMainWindow):
             self.manage_btn.setToolTip("Install channel_manager_gui.py")
         button_layout.addWidget(self.manage_btn)
 
-        self.refresh_btn = QPushButton("Refresh")
-        self.refresh_btn.clicked.connect(self.load_channels)
-        button_layout.addWidget(self.refresh_btn)
-
-        self.launch_btn = QPushButton("Launch Selected")
-        self.launch_btn.clicked.connect(self.launch_selected)
-        button_layout.addWidget(self.launch_btn)
-
-        self.toggle_view_btn = QPushButton("Grid View" if not self.is_grid_view else "List View")
-        self.toggle_view_btn.clicked.connect(self.toggle_view)
-        button_layout.addWidget(self.toggle_view_btn)
-
-        self.dark_mode_btn = QPushButton("Dark Mode" if not self.is_dark_mode else "Light Mode")
-        self.dark_mode_btn.clicked.connect(self.toggle_dark_mode)
-        button_layout.addWidget(self.dark_mode_btn)
+        self.settings_btn = QPushButton("Settings")
+        self.settings_btn.clicked.connect(self.open_settings)
+        button_layout.addWidget(self.settings_btn)
 
         button_layout.addStretch()
-        info_label = QLabel("Double-click a channel or select and click Launch")
-        info_label.setStyleSheet("color: #888888; font-size: 10px; background-color: transparent;")
-        button_layout.addWidget(info_label)
 
-        self.main_layout.addWidget(self.button_frame)
+        channels_layout.addWidget(self.button_frame)
+
+        self.tab_widget.addTab(channels_tab, "Channels")
+
+        # ---- Twitch Tab ----
+        twitch_tab = QWidget()
+        twitch_layout = QVBoxLayout(twitch_tab)
+        twitch_layout.setContentsMargins(10, 10, 10, 10)
+        twitch_layout.setSpacing(8)
+
+        add_row = QHBoxLayout()
+        add_row.setSpacing(8)
+
+        self.twitch_input = QLineEdit()
+        self.twitch_input.setPlaceholderText("Enter Twitch channel name or URL (e.g., twitch.tv/username)")
+        self.twitch_input.setMinimumHeight(30)
+        add_row.addWidget(self.twitch_input)
+
+        self.add_twitch_btn = QPushButton("Add Channel")
+        self.add_twitch_btn.setMinimumHeight(30)
+        self.add_twitch_btn.clicked.connect(self.add_twitch_channel)
+        add_row.addWidget(self.add_twitch_btn)
+
+        twitch_layout.addLayout(add_row)
+
+        self.twitch_list = QListWidget()
+        self.twitch_list.setMinimumHeight(200)
+        self.twitch_list.itemDoubleClicked.connect(self.launch_twitch_stream)
+        twitch_layout.addWidget(self.twitch_list)
+
+        self.tab_widget.addTab(twitch_tab, "Twitch")
 
         # --- Apply mode and view ---
         if self.is_dark_mode:
@@ -109,8 +295,8 @@ class TVLauncher(QMainWindow):
             self.apply_light_mode()
 
         self.load_channels()
+        self.load_twitch_channels()
 
-        # Apply grid view if saved
         if self.is_grid_view:
             self.apply_grid_view()
             self.toggle_view_btn.setText("List View")
@@ -118,8 +304,10 @@ class TVLauncher(QMainWindow):
             self.apply_list_view()
             self.toggle_view_btn.setText("Grid View")
 
+    # -------------------------------------------------------------------------
+    # Header setup
+    # -------------------------------------------------------------------------
     def setup_header(self):
-        """Set up the header with background image."""
         assets_path = Path("assets")
         bg_image_path = assets_path / "retvbckgrnd"
         bg_image = None
@@ -146,7 +334,6 @@ class TVLauncher(QMainWindow):
                 self.header.setFixedHeight(new_height)
                 self.header_pixmap = pixmap
                 return
-        # Fallback
         self.header.setStyleSheet("QFrame#header { background-color: #4a7a9a; border: none; min-height: 60px; }")
         header_layout = QHBoxLayout(self.header)
         header_layout.setContentsMargins(0, 0, 0, 0)
@@ -163,30 +350,37 @@ class TVLauncher(QMainWindow):
                     new_width, new_height, Qt.KeepAspectRatio, Qt.SmoothTransformation))
                 self.header.setFixedHeight(new_height)
 
+    # -------------------------------------------------------------------------
+    # Settings
+    # -------------------------------------------------------------------------
     def load_settings(self):
-        """Load settings from settings.json."""
         self.is_dark_mode = False
         self.is_grid_view = False
+        self.twitch_channels = []
         try:
             if self.settings_file.exists():
                 with open(self.settings_file, 'r') as f:
                     data = json.load(f)
                     self.is_dark_mode = data.get('dark_mode', False)
                     self.is_grid_view = data.get('grid_view', False)
+                    self.twitch_channels = data.get('twitch_channels', [])
         except:
             pass
 
     def save_settings(self):
-        """Save settings to settings.json."""
         try:
             with open(self.settings_file, 'w') as f:
                 json.dump({
                     'dark_mode': self.is_dark_mode,
-                    'grid_view': self.is_grid_view
+                    'grid_view': self.is_grid_view,
+                    'twitch_channels': self.twitch_channels
                 }, f)
         except:
             pass
 
+    # -------------------------------------------------------------------------
+    # Dark/Light mode
+    # -------------------------------------------------------------------------
     def apply_light_mode(self):
         self.is_dark_mode = False
         self.save_settings()
@@ -197,10 +391,15 @@ class TVLauncher(QMainWindow):
                 background-color: #ffffff;
                 border: 1px solid #d0d0d0;
                 color: #333333;
+                outline: none;
             }
-            QListWidget::item { border-bottom: 1px solid #e8e8e8; color: #333333; }
-            QListWidget::item:selected { background-color: #4a7a9a; color: #ffffff; }
-            QListWidget::item:hover:!selected { background-color: #e8eef0; }
+            QListWidget::item {
+                padding: 8px;
+                border: none;
+            }
+            QListWidget::item:hover {
+                background-color: #e8eef0;
+            }
             QPushButton {
                 background-color: #e8e8e8;
                 color: #333333;
@@ -213,12 +412,57 @@ class TVLauncher(QMainWindow):
             QFrame#header { border: none; }
             QProgressBar { border: 1px solid #c0c0c0; background-color: #ffffff; color: #333333; }
             QProgressBar::chunk { background-color: #4a7a9a; }
+            QTabWidget::pane {
+                background-color: #f8f8f8;
+                border: 1px solid #d0d0d0;
+            }
+            QTabBar::tab {
+                background-color: #e0e0e0;
+                border: 1px solid #d0d0d0;
+                border-bottom: none;
+                color: #333333;
+                padding: 6px 12px;
+                margin-right: 2px;
+            }
+            QTabBar::tab:selected {
+                background-color: #f8f8f8;
+                border-bottom: 1px solid #f8f8f8;
+            }
+            QTabBar::tab:hover {
+                background-color: #d0d0d0;
+            }
+            QLineEdit { background-color: #ffffff; border: 1px solid #d0d0d0; color: #333333; }
+            QCheckBox { color: #333333; }
         """)
-        self.count_frame.setStyleSheet("background-color: #f8f8f8; border: 1px solid #d0d0d0; padding: 4px 8px;")
+        self.status_frame.setStyleSheet("background-color: #f8f8f8; border: 1px solid #d0d0d0; padding: 4px 8px;")
         self.count_label.setStyleSheet("color: #4a7a9a; font-weight: bold; font-size: 13px; background-color: transparent;")
-        self.status_text.setStyleSheet("color: #666666; font-size: 12px; background-color: transparent;")
+        self.refresh_btn.setStyleSheet("""
+            QPushButton {
+                font-size: 11px;
+                padding: 4px 12px;
+                background-color: #e8e8e8;
+                border: 1px solid #c0c0c0;
+                min-height: 24px;
+            }
+            QPushButton:hover {
+                background-color: #d8d8d8;
+                border: 1px solid #4a7a9a;
+            }
+        """)
+        self.toggle_view_btn.setStyleSheet("""
+            QPushButton {
+                font-size: 11px;
+                padding: 4px 12px;
+                background-color: #e8e8e8;
+                border: 1px solid #c0c0c0;
+                min-height: 24px;
+            }
+            QPushButton:hover {
+                background-color: #d8d8d8;
+                border: 1px solid #4a7a9a;
+            }
+        """)
         self.button_frame.setStyleSheet("background-color: #f8f8f8; border: 1px solid #d0d0d0; padding: 6px;")
-        self.dark_mode_btn.setText("Dark Mode")
 
     def apply_dark_mode(self):
         self.is_dark_mode = True
@@ -230,10 +474,15 @@ class TVLauncher(QMainWindow):
                 background-color: #2d2d2d;
                 border: 1px solid #3a3a3a;
                 color: #e0e0e0;
+                outline: none;
             }
-            QListWidget::item { border-bottom: 1px solid #3a3a3a; color: #e0e0e0; }
-            QListWidget::item:selected { background-color: #4a7a9a; color: #ffffff; }
-            QListWidget::item:hover:!selected { background-color: #3a3a3a; }
+            QListWidget::item {
+                padding: 8px;
+                border: none;
+            }
+            QListWidget::item:hover {
+                background-color: #3a3a3a;
+            }
             QPushButton {
                 background-color: #3a3a3a;
                 color: #e0e0e0;
@@ -246,12 +495,59 @@ class TVLauncher(QMainWindow):
             QFrame#header { border: none; }
             QProgressBar { border: 1px solid #3a3a3a; background-color: #2d2d2d; color: #e0e0e0; }
             QProgressBar::chunk { background-color: #4a7a9a; }
+            QTabWidget::pane {
+                background-color: #2d2d2d;
+                border: 1px solid #3a3a3a;
+            }
+            QTabBar::tab {
+                background-color: #3a3a3a;
+                border: 1px solid #3a3a3a;
+                border-bottom: none;
+                color: #e0e0e0;
+                padding: 6px 12px;
+                margin-right: 2px;
+            }
+            QTabBar::tab:selected {
+                background-color: #2d2d2d;
+                border-bottom: 1px solid #2d2d2d;
+            }
+            QTabBar::tab:hover {
+                background-color: #4a4a4a;
+            }
+            QLineEdit { background-color: #2d2d2d; border: 1px solid #3a3a3a; color: #e0e0e0; }
+            QCheckBox { color: #e0e0e0; }
         """)
-        self.count_frame.setStyleSheet("background-color: #2d2d2d; border: 1px solid #3a3a3a; padding: 4px 8px;")
+        self.status_frame.setStyleSheet("background-color: #2d2d2d; border: 1px solid #3a3a3a; padding: 4px 8px;")
         self.count_label.setStyleSheet("color: #4a7a9a; font-weight: bold; font-size: 13px; background-color: transparent;")
-        self.status_text.setStyleSheet("color: #888888; font-size: 12px; background-color: transparent;")
+        self.refresh_btn.setStyleSheet("""
+            QPushButton {
+                font-size: 11px;
+                padding: 4px 12px;
+                background-color: #3a3a3a;
+                color: #e0e0e0;
+                border: 1px solid #4a4a4a;
+                min-height: 24px;
+            }
+            QPushButton:hover {
+                background-color: #4a4a4a;
+                border: 1px solid #4a7a9a;
+            }
+        """)
+        self.toggle_view_btn.setStyleSheet("""
+            QPushButton {
+                font-size: 11px;
+                padding: 4px 12px;
+                background-color: #3a3a3a;
+                color: #e0e0e0;
+                border: 1px solid #4a4a4a;
+                min-height: 24px;
+            }
+            QPushButton:hover {
+                background-color: #4a4a4a;
+                border: 1px solid #4a7a9a;
+            }
+        """)
         self.button_frame.setStyleSheet("background-color: #2d2d2d; border: 1px solid #3a3a3a; padding: 6px;")
-        self.dark_mode_btn.setText("Light Mode")
 
     def toggle_dark_mode(self):
         if self.is_dark_mode:
@@ -259,12 +555,14 @@ class TVLauncher(QMainWindow):
         else:
             self.apply_dark_mode()
 
+    # -------------------------------------------------------------------------
+    # Channels Tab
+    # -------------------------------------------------------------------------
     def load_channels(self):
         self.channel_list.clear()
         channels_path = Path("channels")
         if not channels_path.exists():
             self.count_label.setText("Channels: 0")
-            self.status_text.setText("No channels folder found")
             return
 
         logos_path = Path("logos")
@@ -276,6 +574,7 @@ class TVLauncher(QMainWindow):
             found += 1
 
             item = QListWidgetItem()
+            item.setData(Qt.UserRole, channel_name)  # store name
             logo_file = None
             for ext in ['.png', '.jpg', '.jpeg', '.svg']:
                 candidate = logos_path / f"{channel_name}{ext}"
@@ -293,15 +592,20 @@ class TVLauncher(QMainWindow):
                     item.setSizeHint(QSize(60, 40))
             else:
                 item.setSizeHint(QSize(60, 40))
-            item.setText(channel_name)
-            item.setData(Qt.UserRole, channel_name)
+            # Set text based on current view mode
+            if self.is_grid_view:
+                item.setText("")
+            else:
+                item.setText(channel_name)
+                font = item.font()
+                font.setBold(True)
+                font.setPointSize(14)
+                item.setFont(font)
             self.channel_list.addItem(item)
 
         self.count_label.setText(f"Channels: {found}")
-        if found > 0:
-            self.status_text.setText("Ready")
-        else:
-            self.status_text.setText("No channels found")
+
+        # Connect double-click signal
         self.channel_list.itemDoubleClicked.connect(self.launch_channel)
 
     def toggle_view(self):
@@ -313,6 +617,18 @@ class TVLauncher(QMainWindow):
             self.apply_list_view()
             self.toggle_view_btn.setText("Grid View")
         self.save_settings()
+        # Update item texts and font for all items
+        for i in range(self.channel_list.count()):
+            item = self.channel_list.item(i)
+            channel_name = item.data(Qt.UserRole)
+            if self.is_grid_view:
+                item.setText("")
+            else:
+                item.setText(channel_name)
+                font = item.font()
+                font.setBold(True)
+                font.setPointSize(14)
+                item.setFont(font)
 
     def apply_grid_view(self):
         self.channel_list.setFlow(QListView.LeftToRight)
@@ -330,11 +646,6 @@ class TVLauncher(QMainWindow):
             item = self.channel_list.item(i)
             item.setSizeHint(QSize(160, 160))
 
-    def launch_selected(self):
-        current = self.channel_list.currentItem()
-        if current:
-            self.launch_channel(current)
-
     def launch_channel(self, item):
         channel_name = item.data(Qt.UserRole)
         if not channel_name:
@@ -342,10 +653,7 @@ class TVLauncher(QMainWindow):
 
         cmd = f"nohup python3 tv_emulator.py {channel_name} > /dev/null 2>&1 &"
         os.system(cmd)
-        self.status_text.setText(f"Launching: {channel_name}")
-        QMessageBox.information(self, "Channel Launched",
-            f"Channel '{channel_name}' started.\nPress ESC in mpv to quit.\nUse 'pkill -f tv_emulator.py' to kill.")
-        QTimer.singleShot(3000, lambda: self.status_text.setText("Ready"))
+        # No visual feedback, no selection
 
     def open_channel_manager(self):
         if CHANNEL_MANAGER_AVAILABLE:
@@ -355,6 +663,71 @@ class TVLauncher(QMainWindow):
             self.manager.raise_()
         else:
             QMessageBox.warning(self, "Not Available", "Channel Manager is not installed.")
+
+    def open_settings(self):
+        settings = SettingsDialog(self)
+        settings.exec_()
+
+    # -------------------------------------------------------------------------
+    # Twitch Tab
+    # -------------------------------------------------------------------------
+    def add_twitch_channel(self):
+        text = self.twitch_input.text().strip()
+        if not text:
+            return
+        if "twitch.tv/" in text:
+            match = re.search(r'twitch\.tv/([^/?]+)', text)
+            if match:
+                channel_name = match.group(1)
+            else:
+                channel_name = text
+        else:
+            channel_name = text
+        channel_name = channel_name.strip().lower()
+        if not channel_name:
+            return
+        if channel_name in self.twitch_channels:
+            QMessageBox.information(self, "Already Added", f"'{channel_name}' is already in your list.")
+            return
+        self.twitch_channels.append(channel_name)
+        self.save_settings()
+        self.load_twitch_channels()
+        self.twitch_input.clear()
+
+    def load_twitch_channels(self):
+        self.twitch_list.clear()
+        for channel in self.twitch_channels:
+            item = QListWidgetItem(channel)
+            self.twitch_list.addItem(item)
+
+    def launch_twitch_stream(self, item):
+        channel = item.text()
+        try:
+            result = subprocess.run(
+                ["streamlink", f"twitch.tv/{channel}", "best", "--stream-url"],
+                capture_output=True,
+                text=True
+            )
+            if result.returncode != 0:
+                QMessageBox.warning(self, "Stream Error", f"Could not fetch stream for '{channel}'.\n{result.stderr}")
+                return
+            stream_url = result.stdout.strip()
+            if not stream_url:
+                QMessageBox.warning(self, "Stream Error", f"No stream available for '{channel}'.")
+                return
+            subprocess.Popen(["mpv", "--fullscreen", stream_url])
+            self.open_chat_window(channel)
+        except FileNotFoundError:
+            QMessageBox.warning(self, "Missing Dependency",
+                "streamlink is not installed.\nInstall it with:\n"
+                "  sudo pacman -S streamlink  (Arch)\n"
+                "  sudo apt install streamlink  (Debian/Ubuntu)\n"
+                "  sudo dnf install streamlink  (Fedora)")
+        except Exception as e:
+            QMessageBox.warning(self, "Error", str(e))
+
+    def open_chat_window(self, channel):
+        webbrowser.open(f"https://www.twitch.tv/{channel}/chat")
 
 
 def main():
