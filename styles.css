@@ -1,0 +1,197 @@
+/* ---------- base / 2010s page feel ---------- */
+* { box-sizing: border-box; }
+
+html, body {
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    font-family: "Segoe UI", Tahoma, Verdana, Arial, sans-serif;
+    color: #333;
+    background: #dfe3e6;
+    background-image: linear-gradient(to bottom, #eef1f4 0%, #d4d9dd 100%);
+}
+
+/* ---------- card ---------- */
+.card {
+    width: 100%;
+    max-width: 980px;
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 32px;
+    padding: 28px;
+    background: #fff;
+    border: 1px solid #b9c0c6;
+    border-radius: 8px;
+    box-shadow:
+    0 1px 0 rgba(255,255,255,.9) inset,
+    0 8px 22px rgba(0,0,0,.18);
+}
+
+/* ---------- LEFT: gallery ---------- */
+.gallery {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.slides {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    background: #1c1f22;
+    border: 1px solid #aab1b7;
+    border-radius: 6px;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.35);
+    overflow: hidden;
+}
+
+.slide {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    gap: 10px;
+    padding: 10px;
+    opacity: 0;
+    transition: opacity .6s ease;
+    pointer-events: none;
+}
+
+.slide.is-active {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.slide img {
+    width: 50%;
+    height: 100%;
+    object-fit: cover;
+    border: 1px solid #000;
+    border-radius: 3px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.5);
+    background: #2a2e33;
+}
+
+/* dots */
+.dots {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+}
+
+.dot {
+    width: 12px;
+    height: 12px;
+    padding: 0;
+    border: 1px solid #8a9299;
+    border-radius: 50%;
+    background: linear-gradient(to bottom, #f4f6f8 0%, #c9cfd4 100%);
+    box-shadow: 0 1px 0 rgba(255,255,255,.9) inset, 0 1px 2px rgba(0,0,0,.15);
+    cursor: pointer;
+}
+
+.dot.is-active {
+    border-color: #3f861b;
+    background: linear-gradient(to bottom, #7ec850 0%, #4a9422 100%);
+}
+
+/* ---------- RIGHT: panel ---------- */
+.panel {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    gap: 18px;
+    padding: 12px 4px;
+}
+
+.title {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 700;
+    color: #2b2f33;
+    text-shadow: 0 1px 0 #fff;
+}
+
+/* ---------- 2010s glossy download button ---------- */
+.btn-2010 {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 15px 38px;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: .3px;
+    color: #fff;
+    text-decoration: none;
+    text-shadow: 0 -1px 0 rgba(0,0,0,.45);
+    border: 1px solid #2e7d32;
+    border-radius: 6px;
+    background: linear-gradient(
+        to bottom,
+        #8ed45f 0%,
+        #6dbb3e 48%,
+        #529f2c 52%,
+        #3f861b 100%
+    );
+    box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.6),
+    inset 0 -1px 0 rgba(0,0,0,.2),
+    0 2px 4px rgba(0,0,0,.28);
+    transition: filter .15s ease, transform .05s ease;
+}
+
+/* gloss highlight across the top half */
+.btn-2010::after {
+    content: "";
+    position: absolute;
+    left: 1px;
+    right: 1px;
+    top: 1px;
+    height: 48%;
+    border-radius: 5px 5px 40% 40% / 5px 5px 12px 12px;
+    background: linear-gradient(to bottom, rgba(255,255,255,.55), rgba(255,255,255,0));
+    pointer-events: none;
+}
+
+.btn-2010:hover {
+    filter: brightness(1.07);
+}
+
+.btn-2010:active {
+    transform: translateY(1px);
+    box-shadow:
+    inset 0 2px 5px rgba(0,0,0,.45),
+    0 1px 1px rgba(0,0,0,.2);
+}
+
+.btn-icon {
+    font-size: 20px;
+    line-height: 1;
+}
+
+.meta {
+    margin: 0;
+    font-size: 12px;
+    color: #7a8288;
+    text-shadow: 0 1px 0 #fff;
+}
+
+/* ---------- responsive ---------- */
+@media (max-width: 780px) {
+    .card {
+        grid-template-columns: 1fr;
+        gap: 22px;
+    }
+    .panel {
+        padding-top: 0;
+    }
+}
