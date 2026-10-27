@@ -4,24 +4,36 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>retv &mdash; Download for Linux</title>
+  <meta name="description" content="retv: the TV experience, the way you want. Download for Linux.">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
+  <header class="topbar">
+    <span class="brand">retv</span>
+  </header>
+
   <main class="stage">
 
-    <section class="gallery">
-      <img class="shot is-active" src="screenshot-1.png" alt="retv main window">
-      <img class="shot"           src="screenshot-2.png" alt="retv settings window">
+    <section class="gallery" aria-label="Screenshots">
+      <div class="frame">
+        <img class="shot is-active" src="screenshot-1.png" alt="retv main window">
+        <img class="shot"           src="screenshot-2.png" alt="retv settings window">
+      </div>
+      <div class="dots" role="tablist" aria-label="Choose screenshot"></div>
     </section>
 
     <section class="panel">
-      <h1 class="title">Download for Linux (V1.0)</h1>
-      <a class="btn-2010" href="retv.zip" download="retv.zip">
-        <span class="btn-icon" aria-hidden="true">&#10515;</span>
-        <span class="btn-label">Download</span>
-      </a>
-      <p class="meta">retv.zip &middot; 64-bit &middot; ~12&nbsp;MB</p>
+      <h2 class="headline">The TV experience, the way <span class="accent">YOU</span> want.</h2>
+
+      <div class="download">
+        <p class="title">Download for Linux <span class="badge">V1.0</span></p>
+        <a class="btn" href="retv.zip" download="retv.zip">
+          <span class="btn-icon" aria-hidden="true">&#10515;</span>
+          <span class="btn-label">Download</span>
+        </a>
+        <p class="meta">retv.zip &middot; 64-bit &middot; ~12&nbsp;MB</p>
+      </div>
     </section>
 
   </main>
