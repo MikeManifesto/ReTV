@@ -1,11 +1,10 @@
 (function () {
-    var INTERVAL = 7000; // 7 seconds
-
-    var gallery = document.querySelector('.gallery');
-    var swapped = false;
+    var shots = document.querySelectorAll('.shot');
+    var current = 0;
 
     setInterval(function () {
-        swapped = !swapped;
-        gallery.classList.toggle('swapped', swapped);
-    }, INTERVAL);
+        shots[current].classList.remove('is-active');
+        current = (current + 1) % shots.length;
+        shots[current].classList.add('is-active');
+    }, 7000);
 })();

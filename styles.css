@@ -1,90 +1,77 @@
-/* ---------- base: dark, no page scroll ---------- */
 * { box-sizing: border-box; }
 
 html, body {
     height: 100%;
     margin: 0;
-    overflow: hidden;             /* nothing may scroll the page */
+    overflow: hidden;
 }
 
 body {
     background: #0e1012;
-    background-image: radial-gradient(circle at 28% 18%, #1c2229 0%, #0e1012 62%);
+    background-image: radial-gradient(circle at 30% 20%, #1b2128 0%, #0e1012 65%);
     color: #e9ecef;
     font-family: "Segoe UI", Tahoma, Verdana, Arial, sans-serif;
-    -webkit-font-smoothing: antialiased;
 }
 
-/* ---------- layout: no card, just the two halves ---------- */
+/* left = image, right = download */
 .stage {
     height: 100vh;
     height: 100dvh;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: stretch;
-    gap: clamp(16px, 3vw, 56px);
-    padding: clamp(10px, 2.4vh, 28px);
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+    gap: clamp(20px, 3vw, 56px);
+    padding: clamp(16px, 3vh, 40px);
 }
 
-/* ---------- LEFT: image field, fills all available space ---------- */
+/* ---------- one image at a time ---------- */
 .gallery {
     position: relative;
-    height: 100%;
     min-width: 0;
     min-height: 0;
-    overflow: hidden;
 }
 
 .shot {
     position: absolute;
-    top: 0;
+    inset: 0;
+    width: 100%;
     height: 100%;
-    width: calc(50% - 8px);
     object-fit: contain;
-    object-position: center;
+    opacity: 0;
+    transition: opacity .7s ease;
     border-radius: 6px;
-    filter: drop-shadow(0 8px 22px rgba(0, 0, 0, .6));
-    transition: transform .9s cubic-bezier(.65, .05, .36, 1);
-    will-change: transform;
+    filter: drop-shadow(0 8px 24px rgba(0, 0, 0, .55));
 }
 
-.shot:nth-child(1) { left: 0; }
-.shot:nth-child(2) { left: calc(50% + 8px); }
+.shot.is-active { opacity: 1; }
 
-/* the 7-second swap */
-.gallery.swapped .shot:nth-child(1) { transform: translateX(calc(100% + 16px)); }
-.gallery.swapped .shot:nth-child(2) { transform: translateX(calc(-100% - 16px)); }
-
-/* ---------- RIGHT: title + download ---------- */
+/* ---------- centered download panel ---------- */
 .panel {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: clamp(16px, 2.6vh, 30px);
-    padding: 0 clamp(4px, 1vw, 18px);
+    gap: clamp(16px, 2.6vh, 28px);
     text-align: center;
+    min-width: 0;
 }
 
 .title {
     margin: 0;
-    font-size: clamp(21px, 2.2vw, 34px);
+    font-size: clamp(20px, 2vw, 32px);
     font-weight: 800;
     line-height: 1.2;
-    letter-spacing: .2px;
     color: #f3f5f7;
     text-shadow: 0 2px 12px rgba(0, 0, 0, .7);
 }
 
-/* ---------- 2010s glossy download button, big & bold ---------- */
 .btn-2010 {
     position: relative;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 14px;
-    padding: clamp(18px, 2.8vh, 28px) clamp(38px, 4.4vw, 76px);
-    font-size: clamp(20px, 1.9vw, 28px);
+    padding: clamp(18px, 2.6vh, 26px) clamp(40px, 4vw, 72px);
+    font-size: clamp(19px, 1.8vw, 27px);
     font-weight: 800;
     letter-spacing: .4px;
     color: #fff;
@@ -107,7 +94,6 @@ body {
     transition: filter .15s ease, transform .05s ease;
 }
 
-/* gloss highlight across the top half */
 .btn-2010::after {
     content: "";
     position: absolute;
@@ -129,10 +115,7 @@ body {
     0 1px 2px rgba(0, 0, 0, .35);
 }
 
-.btn-icon {
-    font-size: 1.05em;
-    line-height: 1;
-}
+.btn-icon { font-size: 1.05em; line-height: 1; }
 
 .meta {
     margin: 0;
@@ -140,12 +123,11 @@ body {
     color: #7d868e;
 }
 
-/* ---------- narrow screens: stack, still no scroll ---------- */
+/* ---------- stack on narrow screens ---------- */
 @media (max-width: 760px) {
     .stage {
         grid-template-columns: 1fr;
         grid-template-rows: minmax(0, 1fr) auto;
-        gap: 18px;
+        gap: 20px;
     }
-    .panel { padding: 0 0 4px; }
 }
