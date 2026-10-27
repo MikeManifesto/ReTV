@@ -32,7 +32,7 @@
         clearInterval(timer);
         timer = setInterval(function () {
             show((current + 1) % shots.length);
-        }, 7000);
+        }, 10000);
     }
 
     restart();
