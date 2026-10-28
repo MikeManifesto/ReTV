@@ -54,8 +54,8 @@ body {
     flex: 1;
     min-height: 0;
     display: grid;
-    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
-    gap: clamp(24px, 4vw, 72px);
+    grid-template-columns: minmax(0, 2.1fr) minmax(0, 1fr);
+    gap: clamp(12px, 2vw, 32px);
     align-items: start;
     padding: clamp(14px, 4vh, 48px) clamp(20px, 3.5vw, 56px) clamp(16px, 3vh, 32px);
 }
@@ -135,7 +135,6 @@ body {
     padding-top: clamp(16px, 7vh, 90px);
     text-align: center;
     min-width: 0;
-    transform: translateX(-20px);
 }
 
 .headline {
