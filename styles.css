@@ -262,6 +262,19 @@ body {
     color: var(--muted);
 }
 
+.os-icon {
+    display: block;
+    width: clamp(40px, 3.2vw, 56px);
+    height: auto;
+    object-fit: contain;
+    /* subtle drop shadow so light icons read on the dark bg */
+    filter: drop-shadow(0 4px 10px rgba(0, 0, 0, .55));
+    /* nudge it a little closer to the button below it */
+    margin-bottom: -2px;
+    user-select: none;
+    -webkit-user-drag: none;
+}
+
 /* ---------- narrow screens: stack ---------- */
 @media (max-width: 860px) {
     .stage {
