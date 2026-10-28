@@ -264,13 +264,11 @@ body {
 
 .os-icon {
     display: block;
-    width: clamp(40px, 3.2vw, 56px);
+    width: clamp(72px, 6vw, 104px);
     height: auto;
     object-fit: contain;
-    /* subtle drop shadow so light icons read on the dark bg */
-    filter: drop-shadow(0 4px 10px rgba(0, 0, 0, .55));
-    /* nudge it a little closer to the button below it */
-    margin-bottom: -2px;
+    filter: drop-shadow(0 6px 16px rgba(0, 0, 0, .55));
+    margin-bottom: 4px;
     user-select: none;
     -webkit-user-drag: none;
 }
