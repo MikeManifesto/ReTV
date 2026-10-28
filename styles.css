@@ -54,9 +54,8 @@ body {
     flex: 1;
     min-height: 0;
     display: grid;
-    grid-template-columns: auto 440px;
-    justify-content: center;
-    gap: 32px;
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+    gap: clamp(24px, 4vw, 72px);
     align-items: start;
     padding: 80px clamp(20px, 3.5vw, 56px) clamp(16px, 3vh, 32px);
 }
@@ -76,7 +75,7 @@ body {
 .frame {
     position: relative;
     flex: none;
-    width: min(calc(100vw - 560px), calc((100vh - 200px) * 16 / 9));
+    width: min(100%, calc((100vh - 200px) * 16 / 9));
     aspect-ratio: 16 / 9;
     min-height: 0;
 }
@@ -133,6 +132,7 @@ body {
     align-self: stretch;
     gap: clamp(28px, 6vh, 64px);
     padding-bottom: 60px; /* 20px centers it on the image; the extra 40px lifts it higher */
+    transform: translateX(-80px); /* moves the download area closer to the images */
     text-align: center;
     min-width: 0;
 }
@@ -256,7 +256,7 @@ body {
 
 /* ---------- narrow screens: stack ---------- */
 @media (max-width: 860px) {
-    .frame { width: min(100%, calc((100vh - 200px) * 16 / 9)); }
+    .panel { transform: none; }
 
     .stage {
         grid-template-columns: 1fr;
