@@ -135,6 +135,7 @@ body {
     padding-top: clamp(16px, 7vh, 90px);
     text-align: center;
     min-width: 0;
+    transform: translateX(-40px);
 }
 
 .headline {
